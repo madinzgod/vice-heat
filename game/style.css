@@ -1,0 +1,22 @@
+/* Vice Heat — flat sun-soaked styling, no gradients, just solid colour. */
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #123a5c;
+  height: 100%;
+}
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+canvas {
+  display: block;
+  width: min(100vw, 1280px);
+  height: auto;
+  aspect-ratio: 1280 / 800;
+  background: #79c25f;
+  box-shadow: 0 0 0 4px #f5d76e, 0 18px 50px rgba(0, 0, 0, 0.45);
+  cursor: crosshair;
+}
