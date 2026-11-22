@@ -1,82 +1,36 @@
-// audio.js — a tiny WebAudio synth: gunshots, hits, pickups, a two-tone
-// siren warble and a mission-complete sting. Starts on the first user gesture.
-export function createAudio() {
-  let ctx = null;
-  let sirenOsc = null;
-  let sirenGain = null;
-  let sirenTimer = 0;
-
-  function ensure() {
-    if (ctx) { if (ctx.state === "suspended") ctx.resume(); return ctx; }
+// audio.js — tiny WebAudio synth: engine hum, gunshot, coin, siren blips.
+// No audio files; everything is oscillators, started on first user gesture.
+export class GameAudio {
+  constructor() { this.ctx = null; this.engineOsc = null; this.engineGain = null; this.muted = false; }
+  unlock() {
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     try {
-      ctx = new (window.AudioContext || window.webkitAudioContext)();
-    } catch { ctx = null; }
-    return ctx;
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.engineOsc = this.ctx.createOscillator(); this.engineGain = this.ctx.createGain();
+      this.engineOsc.type = 'sawtooth'; this.engineOsc.frequency.value = 55;
+      this.engineGain.gain.value = 0;
+      const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+      this.engineOsc.connect(lp); lp.connect(this.engineGain); this.engineGain.connect(this.ctx.destination);
+      this.engineOsc.start();
+    } catch { this.ctx = null; }
   }
-  window.addEventListener("pointerdown", ensure, { once: false });
-  window.addEventListener("keydown", ensure, { once: false });
-
-  function blip(freq, dur, type = "square", vol = 0.12, slide = 0) {
-    const c = ensure();
-    if (!c) return;
-    const osc = c.createOscillator();
-    const gain = c.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, c.currentTime);
-    if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), c.currentTime + dur);
-    gain.gain.setValueAtTime(vol, c.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
-    osc.connect(gain).connect(c.destination);
-    osc.start();
-    osc.stop(c.currentTime + dur);
+  engine(speedRatio, driving) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.engineOsc.frequency.setTargetAtTime(50 + speedRatio * 130, t, 0.08);
+    this.engineGain.gain.setTargetAtTime(driving ? 0.028 + speedRatio * 0.03 : 0, t, 0.1);
   }
-
-  function noise(dur, vol = 0.2) {
-    const c = ensure();
-    if (!c) return;
-    const len = Math.floor(c.sampleRate * dur);
-    const buffer = c.createBuffer(1, len, c.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
-    const src = c.createBufferSource();
-    src.buffer = buffer;
-    const gain = c.createGain();
-    gain.gain.value = vol;
-    src.connect(gain).connect(c.destination);
-    src.start();
+  blip(freq, dur = 0.09, type = 'square', vol = 0.05, slide = 0) {
+    if (!this.ctx || this.muted) return;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type; o.frequency.value = freq;
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), this.ctx.currentTime + dur);
+    g.gain.setValueAtTime(vol, this.ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+    o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + dur);
   }
-
-  return {
-    play(name) {
-      if (!ctx) return;
-      if (name === "shot") { noise(0.09, 0.25); blip(160, 0.08, "sawtooth", 0.1, -90); }
-      else if (name === "hit") blip(90, 0.12, "square", 0.18, -40);
-      else if (name === "pickup") { blip(660, 0.09, "sine", 0.14); setTimeout(() => blip(990, 0.12, "sine", 0.14), 70); }
-      else if (name === "complete") {
-        [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => blip(f, 0.22, "triangle", 0.16), i * 110));
-      } else if (name === "busted") { blip(220, 0.5, "sawtooth", 0.14, -140); }
-      else if (name === "door") blip(240, 0.07, "square", 0.08, -60);
-    },
-    // Continuous two-tone siren while wanted and police are near.
-    updateSiren(active) {
-      const c = ctx;
-      if (!c) return;
-      if (active && !sirenOsc) {
-        sirenOsc = c.createOscillator();
-        sirenGain = c.createGain();
-        sirenOsc.type = "triangle";
-        sirenGain.gain.value = 0.035;
-        sirenOsc.connect(sirenGain).connect(c.destination);
-        sirenOsc.start();
-      }
-      if (!active && sirenOsc) {
-        try { sirenOsc.stop(); } catch { /* already stopped */ }
-        sirenOsc = null; sirenGain = null;
-      }
-      if (sirenOsc) {
-        sirenTimer += 0.08;
-        sirenOsc.frequency.value = Math.sin(sirenTimer) > 0 ? 720 : 540;
-      }
-    },
-  };
+  shot() { this.blip(160, 0.12, 'sawtooth', 0.09, -120); }
+  coin() { this.blip(880, 0.08, 'square', 0.05); setTimeout(() => this.blip(1320, 0.14, 'square', 0.05), 70); }
+  siren() { this.blip(660, 0.16, 'triangle', 0.03, 220); }
+  crash() { this.blip(90, 0.2, 'sawtooth', 0.08, -50); }
 }
