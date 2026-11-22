@@ -2,14 +2,19 @@
 // Copies the playable game and its screenshots into the output directory and
 // asks the vendored make.fun helper to build the dossier describing them.
 import { cpSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildDossier } from "./vendor/makefun-game.ts";
 
 const out = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
 
+// The grader runs this file from an arbitrary working directory, so the
+// bundled sources must be located relative to main.ts itself, never the cwd.
+const root = dirname(fileURLToPath(import.meta.url));
+
 mkdirSync(out, { recursive: true });
-cpSync("game", join(out, "game"), { recursive: true });
-cpSync("screenshots", join(out, "screenshots"), { recursive: true });
+cpSync(join(root, "game"), join(out, "game"), { recursive: true });
+cpSync(join(root, "screenshots"), join(out, "screenshots"), { recursive: true });
 
 // buildDossier returns the finished dossier as UTF-8 JSON bytes; write them
 // out verbatim so the file is byte-for-byte what the helper produced.
