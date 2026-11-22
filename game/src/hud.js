@@ -25,7 +25,10 @@ function star(ctx, x, y, r, filled) {
 
 export function drawMinimap(ctx, state, x, y, w, h) {
   ctx.save();
-  ctx.fillStyle = "rgba(24,34,44,0.88)";
+  const bg = ctx.createLinearGradient(x, y, x, y + h);
+  bg.addColorStop(0, "rgba(16,30,44,0.92)");
+  bg.addColorStop(1, "rgba(10,18,30,0.92)");
+  ctx.fillStyle = bg;
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = "#f5d76e";
   ctx.lineWidth = 2;
@@ -79,31 +82,45 @@ export function drawMinimap(ctx, state, x, y, w, h) {
   ctx.restore();
 }
 
+// A translucent dark panel with a gold hairline — the HUD's shared chrome.
+function panel(ctx, x, y, w, h, r = 8) {
+  const g = ctx.createLinearGradient(x, y, x, y + h);
+  g.addColorStop(0, "rgba(14,18,30,0.82)");
+  g.addColorStop(1, "rgba(14,18,30,0.62)");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(245,215,110,0.75)";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  ctx.stroke();
+}
+
 export function drawHUD(ctx, state, W, H) {
   const p = state.player;
   ctx.save();
   ctx.textBaseline = "top";
 
-  // Cash.
-  ctx.font = "bold 24px Arial, sans-serif";
+  // Cash, on its own panel.
+  panel(ctx, 10, 8, 148, 34);
+  ctx.font = "bold 23px Arial, sans-serif";
   ctx.fillStyle = "#2bff88";
-  ctx.strokeStyle = "rgba(0,0,0,0.7)";
-  ctx.lineWidth = 4;
   const cash = `$${state.cash}`;
-  ctx.strokeText(cash, 16, 12);
-  ctx.fillText(cash, 16, 12);
+  ctx.fillText(cash, 20, 13);
 
-  // Health bar.
-  ctx.fillStyle = "rgba(0,0,0,0.55)";
-  ctx.fillRect(16, 46, 204, 18);
-  ctx.fillStyle = p.health > 30 ? "#e33e4e" : "#ff2222";
-  ctx.fillRect(18, 48, 200 * Math.max(0, p.health) / 100, 14);
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(16, 46, 204, 18);
+  // Health bar, panelled, with a gradient fill.
+  panel(ctx, 10, 48, 216, 26);
+  const hpW = 200 * Math.max(0, p.health) / 100;
+  const hpGrad = ctx.createLinearGradient(18, 0, 218, 0);
+  hpGrad.addColorStop(0, p.health > 30 ? "#ff7a5c" : "#ff2222");
+  hpGrad.addColorStop(1, p.health > 30 ? "#e33e4e" : "#ff5555");
+  ctx.fillStyle = hpGrad;
+  if (hpW > 2) { ctx.beginPath(); ctx.roundRect(18, 54, hpW, 14, 4); ctx.fill(); }
   ctx.fillStyle = "#ffffff";
   ctx.font = "bold 11px Arial, sans-serif";
-  ctx.fillText("HEALTH", 20, 49);
+  ctx.fillText("HEALTH", 20, 56);
 
   // Wanted stars, top-right, filling from the left of the row.
   for (let i = 0; i < 5; i++) star(ctx, W - 186 + i * 38, 30, 15, i < state.wanted);
@@ -121,34 +138,28 @@ export function drawHUD(ctx, state, W, H) {
     ctx.font = "bold 17px Arial, sans-serif";
     const tw = ctx.measureText(objective).width;
     const bx = (W - tw) / 2 - 16;
-    ctx.fillStyle = "rgba(12,16,26,0.78)";
-    ctx.fillRect(bx, 10, tw + 32, 34);
-    ctx.strokeStyle = "#ffd23f";
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(bx, 10, tw + 32, 34);
+    panel(ctx, bx, 8, tw + 32, 36, 10);
     ctx.fillStyle = "#ffe9a8";
-    ctx.fillText(objective, (W - tw) / 2, 18);
+    ctx.fillText(objective, (W - tw) / 2, 17);
   }
 
   // Mission-complete / story banner.
   if (state.banner && state.banner.t > 0) {
     ctx.font = "bold 30px Arial, sans-serif";
     const tw = ctx.measureText(state.banner.text).width;
-    ctx.fillStyle = "rgba(12,16,26,0.85)";
-    ctx.fillRect((W - tw) / 2 - 22, H * 0.3, tw + 44, 54);
+    panel(ctx, (W - tw) / 2 - 22, H * 0.3, tw + 44, 56, 12);
     ctx.fillStyle = "#ffd23f";
-    ctx.fillText(state.banner.text, (W - tw) / 2, H * 0.3 + 12);
+    ctx.fillText(state.banner.text, (W - tw) / 2, H * 0.3 + 13);
   }
 
   // Speed, bottom-right but clear of the minimap, while driving.
   if (p.car) {
     ctx.font = "bold 26px Arial, sans-serif";
-    ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "rgba(0,0,0,0.7)";
     const s = `${carSpeedMph(p.car)} mph`;
     const tw = ctx.measureText(s).width;
-    ctx.strokeText(s, W - 210 - tw, H - 44);
-    ctx.fillText(s, W - 210 - tw, H - 44);
+    panel(ctx, W - 216 - tw, H - 52, tw + 18, 38, 9);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(s, W - 207 - tw, H - 46);
   }
 
   // Bust meter, bottom-centre.

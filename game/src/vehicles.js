@@ -7,9 +7,18 @@ import { pick, clamp, dist, angleLerp } from "./random.js";
 
 let nextCarId = 1;
 
+// Civilian sprite cycle, matched by name in assets.js. Police and the
+// marked story car override this in the renderer.
+const SPRITE_CYCLE = [
+  "sedan", "coupe", "convertible", "pickup",
+  "sedanOrange", "sedanPurple", "sedanBlue", "coupeGreen",
+];
+
 export function makeCar(x, y, angle, color, kind = "traffic") {
+  const id = nextCarId++;
   return {
-    id: nextCarId++, x, y, angle, speed: 0, color, kind,
+    id, x, y, angle, speed: 0, color, kind,
+    sprite: kind === "police" ? "police" : SPRITE_CYCLE[Math.abs(id) % SPRITE_CYCLE.length],
     w: 44, h: 22, health: 100, driver: null, occupied: false,
     steer: 0, skid: 0, lightPhase: Math.random() * 6,
   };

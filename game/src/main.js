@@ -10,7 +10,7 @@ import { spawnCrowd, updatePed } from "./people.js";
 import { updatePolice, reportCrime } from "./police.js";
 import { updateMissions } from "./missions.js";
 import { createAudio } from "./audio.js";
-import { makeCamera, updateCamera, drawWorld } from "./render.js";
+import { makeCamera, updateCamera, drawWorld, drawCoverBackdrop } from "./render.js";
 import { drawHUD } from "./hud.js";
 import { stageShot, applyShotFx } from "./shots.js";
 
@@ -42,7 +42,8 @@ const state = {
   missionIndex: 0, stageIndex: 0, storyComplete: false, m3Heated: false,
   banner: null, decayTimer: 0, seenTimer: 0, playerSeen: false,
   pendingBust: false, nearCar: null, shotObjective: null, shotRival: null,
-  camZoom: 1, audio: createAudio(), endMessage: "",
+  shotCover: false,
+  camZoom: 1.6, audio: createAudio(), endMessage: "",
 };
 window.__viceHeat = state;
 
@@ -291,42 +292,70 @@ function update(dt) {
 const buttons = [];
 function drawButton(x, y, w, h, label, enabled) {
   buttons.push({ x, y, w, h, label, enabled });
-  ctx.fillStyle = enabled ? "#e8483f" : "rgba(90,90,100,0.6)";
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = "#ffffff";
+  const g = ctx.createLinearGradient(x, y, x, y + h);
+  if (enabled) { g.addColorStop(0, "#ff6a3d"); g.addColorStop(1, "#e8483f"); }
+  else { g.addColorStop(0, "rgba(90,90,100,0.65)"); g.addColorStop(1, "rgba(60,60,72,0.65)"); }
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 12);
+  ctx.fill();
+  ctx.strokeStyle = enabled ? "#ffd23f" : "rgba(255,255,255,0.5)";
   ctx.lineWidth = 2;
-  ctx.strokeRect(x, y, w, h);
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 12);
+  ctx.stroke();
   ctx.fillStyle = "#ffffff";
   ctx.font = "bold 22px Arial, sans-serif";
   ctx.textAlign = "center";
   ctx.fillText(label, x + w / 2, y + h / 2 + 8);
   ctx.textAlign = "left";
 }
-function drawTitle() {
-  ctx.fillStyle = "#123a5c";
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "#f2dd9a";
-  ctx.fillRect(0, H - 170, W, 60);
-  ctx.fillStyle = "#2fa8c9";
-  ctx.fillRect(0, H - 110, W, 110);
+// The big gradient title treatment, shared by the title screen and the
+// staged cover shot.
+function drawTitleText(cx, y, big) {
+  ctx.save();
   ctx.textAlign = "center";
-  ctx.fillStyle = "#ffd23f";
-  ctx.font = "bold 96px Arial, sans-serif";
-  ctx.fillText("VICE HEAT", W / 2, 190);
+  const grad = ctx.createLinearGradient(0, y - big, 0, y + 10);
+  grad.addColorStop(0, "#fff3b0");
+  grad.addColorStop(0.55, "#ffd23f");
+  grad.addColorStop(1, "#ff7b3d");
+  ctx.font = `bold ${big}px Arial, sans-serif`;
+  ctx.shadowColor = "rgba(20,4,32,0.65)";
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 6;
+  ctx.fillStyle = grad;
+  ctx.fillText("VICE HEAT", cx, y);
+  ctx.shadowColor = "transparent";
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 34px Arial, sans-serif";
-  ctx.fillText("Costa Azul", W / 2, 250);
+  ctx.font = `bold ${Math.round(big * 0.36)}px Arial, sans-serif`;
+  ctx.fillText("C O S T A   A Z U L", cx, y + Math.round(big * 0.52));
+  ctx.restore();
+}
+function drawTitle() {
+  drawCoverBackdrop(ctx, W, H);
+  drawTitleText(W / 2, 185, 96);
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255,255,255,0.95)";
   ctx.font = "19px Arial, sans-serif";
   ctx.fillText("An original open-city action game — steal cars, run missions, outrun the heat.", W / 2, 300);
   buttons.length = 0;
   drawButton(W / 2 - 130, 360, 260, 56, "New Game", true);
   drawButton(W / 2 - 130, 432, 260, 56, "Continue", hasSave());
   ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
   ctx.font = "17px Arial, sans-serif";
   ctx.fillText("WASD / arrows — move & drive · Shift — run · E — enter / exit car", W / 2, 560);
   ctx.fillText("Mouse — aim · Click — shoot · Esc / P — pause", W / 2, 590);
   ctx.textAlign = "left";
+}
+function drawCoverTitle() {
+  // A soft top shade so the treatment sits on the scene, then the title.
+  const shade = ctx.createLinearGradient(0, 0, 0, 300);
+  shade.addColorStop(0, "rgba(16,6,28,0.42)");
+  shade.addColorStop(1, "rgba(16,6,28,0)");
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, 0, W, 300);
+  drawTitleText(W / 2, 118, 84);
 }
 function drawOverlay(title, sub) {
   ctx.fillStyle = "rgba(8,10,18,0.72)";
@@ -372,21 +401,23 @@ function handleClick() {
 populate();
 if (shotN >= 1 && shotN <= 4) {
   stageShot(state, shotN);
-  state.mode = "playing";
+  // Shot 1 is the cover: the real title screen over the illustrated vista.
+  state.mode = shotN === 1 ? "title" : "playing";
 }
 let shotFrames = 0;
 function frame() {
   const dt = 1; // fixed-step feel: one unit per animation frame
-  // In screenshot mode the staged scene freezes once it is flagged ready, so
-  // the captured frame is exactly the settled scene however long the capture
-  // tool takes to fire.
-  const shotFrozen = shotN && window.__shotReady;
+  // In screenshot mode the staged scene is frozen from the first frame, so
+  // the captured frame is exactly the staged scene — traffic cannot drift
+  // into pileups or trigger the bust meter while the capture tool loads.
+  const shotFrozen = !!shotN;
   if (state.mode === "playing" || state.mode === "paused") {
     if (state.mode === "playing" && !shotFrozen) update(dt);
     cam.zoom = state.camZoom;
     updateCamera(cam, state, W, H);
     drawWorld(ctx, state, cam, W, H);
     drawHUD(ctx, state, W, H);
+    if (state.shotCover) drawCoverTitle();
     if (state.mode === "paused") drawOverlay("PAUSED", "Take a breath. Costa Azul waits.");
   } else if (state.mode === "title") {
     drawTitle();

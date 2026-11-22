@@ -75,6 +75,7 @@ export function generateWorld(seed) {
             x, y, w, h,
             color: pick(rng, BUILDING_COLORS),
             roof: pick(rng, ["#c96f4a", "#a8a29e", "#7fb3c8", "#e0a458", "#8fbc94"]),
+            roofType: pick(rng, ["hotel", "hotel", "condo", "condo", "club", "warehouse"]),
             floors: 2 + Math.floor(rng() * 6),
           });
         }
@@ -102,7 +103,60 @@ export function generateWorld(seed) {
     });
   }
 
-  return { buildings, palms, props, seed };
+  // Palms along the sidewalks so the avenues read as a tropical boulevard.
+  for (const cx of xs) {
+    for (let y = 120; y < BEACH_Y - 60; y += 260) {
+      if (rng() < 0.75) palms.push({ x: cx - 62, y: y + randRange(rng, -20, 20), s: randRange(rng, 0.75, 1.05) });
+      if (rng() < 0.75) palms.push({ x: cx + 62, y: y + 130 + randRange(rng, -20, 20), s: randRange(rng, 0.75, 1.05) });
+    }
+  }
+
+  // Beach dressing: umbrellas and towels on both sand strips by the sea.
+  const umbrellas = [];
+  const towelColors = ["#ff5e78", "#ffd23f", "#3fd0ff", "#ff8c42", "#7bed6a", "#ff6bff"];
+  for (let x = 90; x < WORLD_W - 60; x += 120) {
+    if (rng() < 0.8) umbrellas.push({ x: x + randRange(rng, -24, 24), y: 2064 + randRange(rng, -6, 6), color: pick(rng, towelColors), towel: pick(rng, towelColors) });
+    if (rng() < 0.7) umbrellas.push({ x: x + 55 + randRange(rng, -24, 24), y: 2216 + randRange(rng, -5, 5), color: pick(rng, towelColors), towel: pick(rng, towelColors) });
+  }
+
+  // Cars parked nose-to-tail along the coastal shoulder, south of the avenue.
+  const parkedCars = [];
+  const parkedSprites = ["sedan", "convertible", "pickup", "sedanBlue", "coupe", "sedanOrange", "sedanPurple", "coupeGreen"];
+  let spriteIdx = 0;
+  for (let x = 240; x < WORLD_W - 160; x += 148) {
+    if (rng() < 0.22) continue;
+    parkedCars.push({
+      x: x + randRange(rng, -10, 10), y: 2212, angle: 0,
+      sprite: parkedSprites[spriteIdx++ % parkedSprites.length],
+    });
+  }
+  // A small beach-club parking row on the north sand strip.
+  for (let x = 760; x < 1300; x += 132) {
+    if (rng() < 0.3) continue;
+    parkedCars.push({
+      x, y: 2062, angle: Math.PI,
+      sprite: parkedSprites[spriteIdx++ % parkedSprites.length],
+    });
+  }
+
+  // Boats anchored off the marina and along the southern shore.
+  const boats = [];
+  for (let i = 0; i < 7; i++) {
+    boats.push({
+      x: 2740 + i * 62 + randRange(rng, -14, 14),
+      y: 2310 + randRange(rng, -16, 22),
+      angle: randRange(rng, -0.22, 0.22), s: randRange(rng, 0.8, 1.05),
+    });
+  }
+  for (let i = 0; i < 5; i++) {
+    boats.push({
+      x: 420 + i * 430 + randRange(rng, -40, 40),
+      y: 2330 + randRange(rng, -14, 26),
+      angle: randRange(rng, -0.3, 0.3), s: randRange(rng, 0.7, 0.95),
+    });
+  }
+
+  return { buildings, palms, props, umbrellas, parkedCars, boats, seed };
 }
 
 // Solid-rect collision test used by the player and by cars.
