@@ -116,6 +116,9 @@ export function buildWorld(scene) {
   const palette = [0xf6e3c5, 0xf9c6c0, 0xbfe3dd, 0xfde68a, 0xd6c8f0, 0xffd9a0, 0xcfe8ff, 0xf3f0e6];
   const signs = [['AZUL HOTEL', '#2b1055', '#ff7ad9'], ['CAFÉ SOL', '#3d1c02', '#ffb347'], ['MARINA INN', '#02283d', '#7ce7ff'],
     ['CLUB NEÓN', '#26043d', '#c77dff'], ['PALMA SUITES', '#33200a', '#ffe9b0'], ['BANCO AZUL', '#0a2436', '#9fd8ff']];
+  const shopSigns = [['FRUTAS', '#123524', '#9be15d'], ['TACOS SOL', '#3d1c02', '#ffb347'], ['BAR AZUL', '#0a2436', '#7ce7ff'],
+    ['DISCOS', '#26043d', '#ff7ad9'], ['HELADOS', '#3d0a24', '#ffd1e8'], ['FARMACIA', '#0d2b1a', '#8affc1'],
+    ['LIBROS', '#2b1a05', '#ffe9b0'], ['SURF SHOP', '#02283d', '#7ce7ff']];
   let signIdx = 0;
   for (let bx = 0; bx < 3; bx++) for (let bz = 0; bz < 4; bz++) {
     const x0 = ROAD_X[bx] + 9, x1 = (ROAD_X[bx + 1] ?? 90) - 9;
@@ -127,7 +130,7 @@ export function buildWorld(scene) {
     for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
       const w = bw / cols - 3, d = bd / rows - 3;
       const cx = x0 + (i + .5) * bw / cols, cz = z0 + (j + .5) * bd / rows;
-      const h = downtown ? 16 + rng() * 22 : 7 + rng() * 11;
+      const h = downtown ? 15 + rng() * 25 : 6.5 + rng() * 13.5;
       const base = '#' + palette[Math.floor(rng() * palette.length)].toString(16).padStart(6, '0');
       const tex = windowTexture(base, downtown ? .55 : .35, rng);
       const mat = new THREE.MeshLambertMaterial({ map: tex });
@@ -136,6 +139,32 @@ export function buildWorld(scene) {
       grp.add(box(w + 0.7, 0.5, d + 0.7, M(0x8a5a3b), cx, h + 0.25, cz)); // roof lip
       if (rng() < .5) grp.add(box(2.4, 1.1, 2.4, M(0x9aa4ae), cx + w / 4, h + 0.8, cz)); // roof unit
       colliders.push({ x: cx, z: cz, hw: w / 2 + 0.4, hd: d / 2 + 0.4 });
+      // ---- street-level detail: glassy storefront band, warm glow strip,
+      // fascia, striped awnings on all four faces, balcony/cornice strips ----
+      const trim = M(palette[Math.floor(rng() * palette.length)]);
+      const awnM = M([0xe63946, 0x2a9d8f, 0xffb347, 0x4361ee, 0xff7ad9][Math.floor(rng() * 5)]);
+      grp.add(box(w + 0.35, 1.7, d + 0.35, M(0x22344c), cx, 0.9, cz)); // storefront glass
+      grp.add(box(w + 0.42, 0.42, d + 0.42, M(0xffca7a, 0xff9a3c, 0.5), cx, 1.32, cz)); // glow strip
+      grp.add(box(w + 0.5, 0.22, d + 0.5, trim, cx, 1.88, cz)); // fascia
+      for (const s of [-1, 1]) {
+        const a1 = box(w * 0.74, 0.1, 1.2, awnM, cx, 2.2, cz + s * (d / 2 + 0.55)); a1.rotation.x = s * 0.34; grp.add(a1);
+        const a2 = box(1.2, 0.1, d * 0.74, awnM, cx + s * (w / 2 + 0.55), 2.2, cz); a2.rotation.z = -s * 0.34; grp.add(a2);
+      }
+      for (let f = 1; f <= 3; f++) { // balcony strips: perimeter frame only, never a solid slab
+        const by = h * f / 3.4;
+        if (by > 3.2 && by < h - 1.4) {
+          grp.add(box(w + 0.6, 0.26, 0.6, trim, cx, by, cz - d / 2 - 0.05));
+          grp.add(box(w + 0.6, 0.26, 0.6, trim, cx, by, cz + d / 2 + 0.05));
+          grp.add(box(0.6, 0.26, d + 0.6, trim, cx - w / 2 - 0.05, by, cz));
+          grp.add(box(0.6, 0.26, d + 0.6, trim, cx + w / 2 + 0.05, by, cz));
+        }
+      }
+      if (signIdx < shopSigns.length && rng() < .8) { // small shop sign over the storefront
+        const [txt, bg, fg] = shopSigns[signIdx++];
+        const s = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w * .62, 7.5), 1.05),
+          new THREE.MeshBasicMaterial({ map: signTexture(txt, bg, fg) }));
+        s.position.set(cx, 2.55, cz - d / 2 - 0.24); s.rotation.y = Math.PI; grp.add(s);
+      }
       if (h > 13 && signIdx < signs.length) { // neon sign facing the nearest road
         const [txt, bg, fg] = signs[signIdx++];
         const s = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w * .9, 13), 3),
@@ -147,13 +176,24 @@ export function buildWorld(scene) {
 
   // ---------- palms + street lamps ----------
   const trunkM = M(0x8a6a42), leafM = M(0x2f9e57);
+  const leafGeo = new THREE.BoxGeometry(3.0, 0.07, 0.4); leafGeo.translate(1.45, 0, 0); // pivot at frond base
+  const tipGeo = new THREE.BoxGeometry(1.25, 0.06, 0.3); tipGeo.translate(0.6, 0, 0);
+  const leafM2 = M(0x37b268);
   function palm(x, z, s = 1) {
     const g = new THREE.Group();
     const trunk = box(0.32, 4.6, 0.32, trunkM, 0, 2.3, 0); trunk.rotation.z = 0.09; g.add(trunk);
-    for (let i = 0; i < 6; i++) {
-      const leaf = box(3.4, 0.1, 0.65, leafM, 0, 4.75, 0);
-      leaf.rotation.y = i * Math.PI / 3; leaf.rotation.z = -0.42;
-      leaf.translateX(1.5); g.add(leaf);
+    const crown = new THREE.Group(); crown.position.set(0.42, 4.68, 0); g.add(crown);
+    for (let i = 0; i < 8; i++) { // eight drooped fronds, each with a downturned tip
+      const yaw = new THREE.Group(); yaw.rotation.y = i * Math.PI / 4 + (i % 2) * 0.16;
+      const frond = new THREE.Group(); frond.rotation.z = -0.3 - (i % 3) * 0.16; // gentle arc
+      const leaf = new THREE.Mesh(leafGeo, i % 2 ? leafM : leafM2); frond.add(leaf);
+      const tip = new THREE.Mesh(tipGeo, i % 2 ? leafM2 : leafM);
+      tip.position.set(2.88, -0.2, 0); tip.rotation.z = -0.95; frond.add(tip); // tip droops hard
+      yaw.add(frond); crown.add(yaw);
+    }
+    for (let i = 0; i < 3; i++) { // coconuts
+      const nut = new THREE.Mesh(new THREE.SphereGeometry(0.21, 7, 6), trunkM);
+      nut.position.set(Math.cos(i * 2.1) * 0.3, -0.22, Math.sin(i * 2.1) * 0.3); crown.add(nut);
     }
     g.position.set(x, 0, z); g.scale.setScalar(s); grp.add(g);
     colliders.push({ x, z, hw: 0.5, hd: 0.5 });
@@ -167,23 +207,56 @@ export function buildWorld(scene) {
     const head = box(0.5, 0.3, 1.5, headM, x + s * 7, 5.5, z); grp.add(head); animated.lampHeads.push(head);
   }
 
-  // ---------- market street: stalls along the z=-22 road, east blocks ----------
+  // ---------- night market: two stall rows facing each other over the z=-22 road ----------
   const stallCols = [0xff5e78, 0xffb347, 0x37c8d9, 0x9be15d, 0xff7ad9, 0xffe066];
   const market = new THREE.Group(); grp.add(market);
-  for (let i = 0; i < 7; i++) {
-    const x = 31 + i * 6.4, z = -14.6, col = stallCols[i % stallCols.length];
+  function stall(x, z, i) {
+    const col = stallCols[i % stallCols.length];
     market.add(box(3.6, 1.05, 2, M(0x9a6a44), x, 0.55, z));
     market.add(box(3.9, 0.14, 2.4, M(col), x, 2.25, z));
     for (const sx of [-1.7, 1.7]) market.add(box(0.14, 2.25, 0.14, M(0x6b4a2f), x + sx, 1.1, z));
-    for (let k = 0; k < 5; k++) market.add(box(0.5, 0.35, 0.5, M(stallCols[(i + k) % 6]), x - 1.3 + k * 0.65, 1.25, z + rng() * 0.5));
+    for (let k = 0; k < 6; k++) market.add(box(0.5, 0.35, 0.5, M(stallCols[(i + k) % 6]), x - 1.55 + k * 0.62, 1.25, z + rng() * 0.5));
+    market.add(box(0.55, 0.7, 0.55, M(0x7a4a26), x + 2.2, 0.35, z + 0.4)); // crate beside the stall
     colliders.push({ x, z, hw: 2, hd: 1.3 });
   }
-  // string lights over the market
-  const bulbM = new THREE.MeshBasicMaterial({ color: 0xffca7a });
-  for (let i = 0; i < 26; i++) {
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 5), bulbM);
-    b.position.set(30 + i * 1.6, 3.6 - Math.sin(i / 25 * Math.PI) * 0.5, -14.6); market.add(b);
+  for (let i = 0; i < 8; i++) stall(27 + i * 4.6, -14.6, i);          // north row
+  for (let i = 0; i < 7; i++) stall(29.5 + i * 4.8, -29.6, i + 3);    // south row
+  for (let i = 0; i < 6; i++) { // barrels + crate clusters in the gaps
+    const bx = 30 + i * 6.8, bz = i % 2 ? -17.4 : -26.8;
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.95, 9), M(stallCols[i % 6]));
+    barrel.position.set(bx, 0.48, bz); market.add(barrel);
+    market.add(box(0.8, 0.5, 0.8, M(0x9a6a44), bx + 0.8, 0.25, bz + 0.3, rng()));
   }
+  // warm light pools on the ground + real point lights so the market glows at night
+  const poolM = new THREE.MeshBasicMaterial({ color: 0xffb45e, transparent: true, opacity: 0.16, depthWrite: false });
+  for (const [px, pz] of [[36, -18], [48, -22], [60, -26], [42, -27], [56, -16]]) {
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(3.4, 18), poolM);
+    pool.rotation.x = -Math.PI / 2; pool.position.set(px, 0.06, pz); market.add(pool);
+  }
+  for (const [px, pz] of [[40, -16], [52, -24], [58, -29]]) { // three real lights, kept few for perf
+    const pl = new THREE.PointLight(0xffb45e, 0.85, 19); pl.position.set(px, 3.3, pz); market.add(pl);
+  }
+  // string lights ON visible sagging wires: two runs along the rows, three across the road
+  const bulbM = new THREE.MeshBasicMaterial({ color: 0xffca7a });
+  const wireM = new THREE.LineBasicMaterial({ color: 0x14100c });
+  function stringWire(x0, z0, x1, z1, y) {
+    const pts = [];
+    for (let i = 0; i <= 20; i++) {
+      const f = i / 20;
+      pts.push(new THREE.Vector3(x0 + (x1 - x0) * f, y - Math.sin(f * Math.PI) * 0.55, z0 + (z1 - z0) * f));
+    }
+    market.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), wireM));
+    for (let i = 1; i < 20; i += 2) {
+      const p = pts[i];
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 5), bulbM);
+      b.position.set(p.x, p.y - 0.16, p.z); market.add(b);
+    }
+  }
+  stringWire(25.5, -14.6, 61.5, -14.6, 3.7);
+  stringWire(28, -29.6, 60, -29.6, 3.7);
+  stringWire(36, -14.6, 36, -29.6, 3.9);
+  stringWire(48, -14.6, 48, -29.6, 3.9);
+  stringWire(60, -14.6, 60, -29.6, 3.9);
 
   // ---------- marina: docks + boats on the south shore ----------
   const dockM = M(0x8a6a44), hullCols = [0xffffff, 0xff5e78, 0x37c8d9, 0xffb347, 0x7ce7ff];

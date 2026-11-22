@@ -86,6 +86,8 @@ export class Crowd {
       { axis: 'x', from: -80, to: 80, fixed: 53.5 }, { axis: 'x', from: -80, to: 80, fixed: 70.5 },
       { axis: 'z', from: -80, to: 52, fixed: -14.5 }, { axis: 'z', from: -80, to: 52, fixed: 29.5 },
       { axis: 'x', from: 26, to: 76, fixed: -14.6 }, { axis: 'x', from: -80, to: 80, fixed: -29.5 },
+      { axis: 'x', from: 27, to: 62, fixed: -12.6 }, { axis: 'x', from: 29, to: 60, fixed: -31.4 },
+      { axis: 'x', from: 27, to: 62, fixed: -19.5 }, { axis: 'x', from: -80, to: 80, fixed: 53.5 },
     ];
     for (let i = 0; i < count; i++) {
       const mesh = makePerson({

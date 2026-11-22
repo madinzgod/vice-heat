@@ -15,7 +15,7 @@ const canvas = document.getElementById('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6));
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(58, 16 / 10, 0.1, 600);
+const camera = new THREE.PerspectiveCamera(64, 16 / 10, 0.1, 600);
 const lights = { sun: new THREE.DirectionalLight(0xffffff, 1), hemi: new THREE.HemisphereLight(0xbfe3ff, 0x51683f, 0.7) };
 lights.sun.position.set(60, 90, 40); scene.add(lights.sun, lights.hemi, new THREE.AmbientLight(0xffffff, 0.12));
 
@@ -25,7 +25,7 @@ const audio = new GameAudio();
 const player = new Player(scene);
 const traffic = new Traffic(scene, 9);
 const parked = parkedCars(scene);
-const crowd = new Crowd(scene, 16);
+const crowd = new Crowd(scene, 26);
 const police = new Police(scene);
 const npcs = {};
 for (const key of ['marisol', 'tito', 'sana']) {
@@ -170,10 +170,10 @@ function stageScene(name) {
   }
   if (name === 'mission') {
     setPreset('night');
-    player.x = 40; player.z = -7.5; player.ry = Math.PI;
-    state.camYaw = 0; state.camPitch = 0.3;
+    player.x = 43; player.z = -22; player.ry = Math.PI;
+    state.camYaw = 0; state.camPitch = 0.34;
     hud.showMission(2, 'HOT CARGO', 2, 3, 'Collect the crate from stall seven.');
-    worldFx.setBeacon(44, -14.6);
+    worldFx.setBeacon(50, -29.6);
     hud.showDialogue([['tito', 'Psst. Night market, stall seven — that crate is NOT fruit, entiendes? Grab it and do not look inside.']], () => {});
     state.cash = 3050; state.wanted = 1; police.setWanted(1); state.dayMin = 21 * 60 + 40;
   }
@@ -188,6 +188,15 @@ function stageScene(name) {
     hud.showMission(3, 'COOL DOWN', 2, 4, 'Run the beach road checkpoint on the boulevard.');
     worldFx.setBeacon(66, 62); state.cash = 4300; state.dayMin = 11 * 60 + 15;
     state.pin = { car, heli: false, x: car.x, z: car.z, ry: car.ry };
+  }
+  // snap the camera straight to its composed position (no lerp travel in shots)
+  if ((name === 'street' || name === 'vista') && player.inCar) {
+    const c = player.inCar;
+    camera.position.set(c.x + Math.sin(c.ry) * 14.5, 5.4, c.z + Math.cos(c.ry) * 14.5);
+  }
+  if (name === 'mission') {
+    const d = 6.4 * Math.cos(state.camPitch * 0.6);
+    camera.position.set(player.x + Math.sin(state.camYaw) * d, 1.7 + state.camPitch * 3.4, player.z + Math.cos(state.camYaw) * d);
   }
 }
 if (STAGE) stageScene(STAGE);
@@ -204,10 +213,12 @@ function updateCamera(dt) {
   const driving = !!player.inCar;
   const px = player.x, pz = player.z;
   if (driving) {
-    const c = player.inCar, back = 9.8, h = 3.7;
+    // chase cam pulled back and raised (v5): the player's car stays the clear
+    // subject, pursuers read behind/beside it, the helicopter fits the frame.
+    const c = player.inCar, back = 14.5, h = 5.4;
     const bx = c.x + Math.sin(c.ry) * back, bz = c.z + Math.cos(c.ry) * back;
     camera.position.lerp(camTarget.set(bx, h, bz), 1 - Math.pow(0.0001, dt));
-    camera.lookAt(c.x - Math.sin(c.ry) * 9, 1.6, c.z - Math.cos(c.ry) * 9);
+    camera.lookAt(c.x - Math.sin(c.ry) * 11, 1.8, c.z - Math.cos(c.ry) * 11);
     state.camYaw = c.ry + Math.PI;
   } else {
     const dist = 6.4, h = 1.7 + state.camPitch * 3.4;
@@ -255,7 +266,9 @@ function frame(now) {
         player.x = c.x; player.z = c.z;
         c.speed = 13; c.mesh.position.set(c.x, 0, c.z); c.mesh.rotation.y = c.ry;
         state.speedKmh = 47;
-        const FORM = [[1.5, -3.4], [4.5, 3.4], [10, -1.5], [16, 1.5], [22, 0]];
+        // v5 formation: every pursuer sits close behind the player's car and
+        // offset to a flank, so none of them looms between camera and subject.
+        const FORM = [[2.5, -4.1], [5, 4.1], [7.5, -2.7], [8, 2.7], [11, 0]];
         police.cars.forEach((p, i) => {
           const [back, side] = FORM[i % FORM.length];
           p.x = c.x - fx * back - fz * side; p.z = c.z - fz * back + fx * side; p.ry = c.ry; p.speed = 13;
@@ -263,7 +276,7 @@ function frame(now) {
         });
         if (state.pin.heli) {
           police.heli.visible = true;
-          police.heli.position.set(c.x + fx * 21, 12.5, c.z + fz * 21);
+          police.heli.position.set(c.x + fx * 19 - fz * 3, 11.5, c.z + fz * 19 + fx * 3);
           police.heli.rotation.y = c.ry;
           police.heli.userData.rotor.rotation.y += dt * 28;
         }

@@ -79,6 +79,15 @@ export class Hud {
     for (const x of ROAD_X) { g.moveTo(X(x), 0); g.lineTo(X(x), S); }
     for (const z of [...ROAD_Z, BOULEVARD_Z]) { g.moveTo(0, Z(z)); g.lineTo(S, Z(z)); }
     g.stroke();
+    // road labels + north indicator
+    g.fillStyle = 'rgba(230,240,248,0.85)'; g.font = '700 8px Verdana'; g.textAlign = 'center';
+    g.fillText('BLVD', X(0), Z(BOULEVARD_Z) - 7);
+    g.fillText('MARKET', X(45), Z(-22) - 7);
+    g.fillText('MARINA', X(52), Z(100) + 3);
+    g.font = '900 12px Verdana'; g.fillStyle = '#ffffff';
+    g.fillText('N', S / 2, 14);
+    g.beginPath(); g.moveTo(S / 2, 16); g.lineTo(S / 2 - 3.4, 23); g.lineTo(S / 2 + 3.4, 23); g.closePath(); g.fill();
+    g.textAlign = 'left';
     const dot = (x, z, c, r) => { g.fillStyle = c; g.beginPath(); g.arc(X(x), Z(z), r, 0, 7); g.fill(); };
     for (const c of cars) dot(c.x, c.z, '#cfd8e3', 2);
     if (wanted > 0) for (const c of police) dot(c.x, c.z, (performance.now() % 600 < 300) ? '#ff4444' : '#4488ff', 2.6);
